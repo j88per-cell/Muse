@@ -240,26 +240,22 @@ const saveEditorContent = async () => {
         delta: editorInstance.value.getContents(),
         text: editorInstance.value.getText(),
     };
-    console.log('Quill save payload', {
+    await updateChapterField(
         chapterId,
-        delta: latestContent.value.delta,
-        text: latestContent.value.text,
-    });
-    isSaving.value = true;
-    try {
-        await updateChapterField(
-            chapterId,
-            {
-                content: latestContent.value.text,
-                content_delta: JSON.stringify(latestContent.value.delta),
-                content_format: 'delta',
-            },
-            { applyLocal: true }
-        );
-        isDirty.value = false;
-    } finally {
-        isSaving.value = false;
-    }
+        {
+            content: latestContent.value.text,
+            content_delta: JSON.stringify(latestContent.value.delta),
+            content_format: 'delta',
+        },
+        { applyLocal: true }
+    );
+    isDirty.value = false;
+};
+
+const queueContentSave = () => {
+    scheduleSave('content', async () => {
+        await saveEditorContent();
+    }, 900);
 };
 
 const ensureEditor = async () => {
@@ -298,6 +294,7 @@ const ensureEditor = async () => {
             return;
         }
         isDirty.value = true;
+        queueContentSave();
     });
     editorInitInProgress.value = false;
 };
@@ -490,13 +487,23 @@ watch(siteFontSize, () => {
                                         : 'text-ink/30 cursor-not-allowed'
                                 "
                                 :disabled="!selectedChapter"
-                                @click="saveEditorContent"
+                                @click="
+                                    scheduleSave('manual', async () => {
+                                        await saveEditorContent();
+                                    }, 0)
+                                "
                             >
                                 Save
                             </button>
                         </div>
                     </div>
-                    <div class="mt-3 rounded-3xl border border-ink/10 bg-white/90">
+                    <div class="editor-shell mt-3 rounded-3xl border border-ink/10 bg-white/90">
+                        <div v-if="selectedChapter" class="editor-heading">
+                            <p class="editor-heading__label">
+                                Chapter {{ (selectedChapter.position ?? 0) + 1 }}
+                            </p>
+                            <p class="editor-heading__title">{{ selectedChapter.title }}</p>
+                        </div>
                         <div ref="editorEl" class="quill-editor min-h-[520px]"></div>
                     </div>
                 </div>
