@@ -362,9 +362,9 @@ watch(siteFontSize, () => {
         </header>
 
         <main
-            class="relative z-10 mx-auto grid w-full max-w-none gap-2 px-1 pb-6 lg:grid-cols-[360px_minmax(0,1fr)_240px]"
+            class="app-shell relative z-10 mx-auto grid w-full max-w-none gap-2 px-1 pb-6 lg:grid-cols-[360px_minmax(0,1fr)_240px]"
         >
-            <aside class="space-y-5 rounded-3xl border border-ink/10 bg-white/70 p-4 shadow-[0_20px_60px_rgba(51,48,41,0.12)] backdrop-blur">
+            <aside class="sidebar-panel space-y-5 rounded-3xl border border-ink/10 bg-white/70 p-4 shadow-[0_20px_60px_rgba(51,48,41,0.12)] backdrop-blur">
                 <div>
                     <p class="text-xs uppercase tracking-[0.35em] text-ink/50">Library</p>
                     <div class="mt-4 space-y-3 text-sm">
@@ -471,7 +471,7 @@ watch(siteFontSize, () => {
                 </div>
             </aside>
 
-            <section class="space-y-4 rounded-[26px] border border-ink/10 bg-white/70 p-4 shadow-[0_30px_80px_rgba(61,60,52,0.18)] backdrop-blur">
+            <section class="editor-panel space-y-4 rounded-[26px] border border-ink/10 bg-white/70 p-4 shadow-[0_30px_80px_rgba(61,60,52,0.18)] backdrop-blur">
                 <div>
                     <div class="flex items-center justify-between">
                         <p class="text-xs uppercase tracking-[0.3em] text-ink/50">Editor</p>
@@ -509,7 +509,7 @@ watch(siteFontSize, () => {
                 </div>
             </section>
 
-            <aside class="space-y-5 rounded-3xl border border-ink/10 bg-white/70 p-4 shadow-[0_20px_60px_rgba(51,48,41,0.12)] backdrop-blur">
+            <aside class="sidebar-panel space-y-5 rounded-3xl border border-ink/10 bg-white/70 p-4 shadow-[0_20px_60px_rgba(51,48,41,0.12)] backdrop-blur">
                 <div>
                     <p class="text-xs uppercase tracking-[0.35em] text-ink/50">Settings</p>
                     <div class="mt-4 space-y-4 text-sm">

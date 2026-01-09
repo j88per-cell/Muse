@@ -51,6 +51,25 @@
     z-index: 0;
 }
 
+.app-shell {
+    height: calc(100vh - 72px);
+    overflow: hidden;
+}
+
+.sidebar-panel {
+    overflow: hidden;
+}
+
+.editor-panel {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.editor-panel .editor-shell {
+    flex: 1;
+}
+
 .editor-shell {
     position: relative;
 }
@@ -83,6 +102,14 @@
 
 .editor-shell .ql-container .ql-editor {
     padding-top: calc(var(--editor-toolbar-height, 42px) + 6rem);
+}
+
+.editor-shell .ql-container {
+    height: 100%;
+}
+
+.editor-shell .ql-container .ql-editor {
+    overflow-y: auto;
 }
 
 .ql-editor {
