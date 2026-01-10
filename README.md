@@ -2,6 +2,25 @@
 
 Local creative writing workspace built with Laravel + Vue + Quill.
 
+![Muse main page](docs/Muse%20main%20page.png)
+
+## Install
+
+```sh
+composer install
+npm install
+```
+
+## Setup
+
+```sh
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite
+```
+
+If you have WonderPen data, place it at `storage/app/private/data.json`.
+
 ## Run locally
 
 ```sh
