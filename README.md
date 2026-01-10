@@ -34,17 +34,26 @@ Open `http://localhost:8000`.
 - Notes management per story.
 - Character management across multiple stories.
 - Export as PDF (and EPUB if feasible).
+- Focus mode, hide both sidebars.
 
 ### Data + Sync
 
 - Word count jobs and per-book stats.
 - Optional local backups and import/export bundles.
+- Automated local backups (scheduled or on close).
+- Optional cloud backups (Google Drive).
 
 ### UX
 
 - Chapter lock/protect toggle.
 - Draft comparison / revision history.
 - Editor-focused scrolling (sidebars fixed).
+- Split Vue app into layout + page components (avoid monolithic SFC).
+- Optional dark mode theme.
+
+### Release
+
+- Package as a desktop app (Electron/Tauri).
 
 ## Data import
 

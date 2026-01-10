@@ -16,6 +16,13 @@ const siteFontSize = ref(18);
 const editorFontSize = ref(24);
 const openBooks = ref({});
 const charactersOpen = ref(true);
+const mode = ref('writing');
+const selectedCharacterId = ref(null);
+const characterDraft = ref({
+    name: '',
+    notes: '',
+    book_ids: [],
+});
 
 const editorEl = ref(null);
 const editorInstance = ref(null);
@@ -25,6 +32,9 @@ const isSaving = ref(false);
 const isDirty = ref(false);
 const titleDraft = ref('');
 const positionDraft = ref('');
+const bookTitleDraft = ref('');
+const isHeadingFaded = ref(false);
+const editorScrollBound = ref(false);
 const latestContent = ref({ text: '', delta: null });
 const saveTimers = ref({
     title: null,
@@ -55,8 +65,15 @@ const selectedChapter = computed(() => {
     return chapters.value.find((chapter) => chapter.id === selectedChapterId.value) || null;
 });
 
+const selectedCharacter = computed(() => {
+    return characters.value.find((character) => character.id === selectedCharacterId.value) || null;
+});
 const selectedBook = computed(() => {
     return books.value.find((book) => book.id === selectedBookId.value) || null;
+});
+
+const activeBook = computed(() => {
+    return selectedChapter.value?.book || selectedBook.value || null;
 });
 
 const bookStats = computed(() => {
@@ -129,6 +146,84 @@ const createChapter = async (book) => {
     await loadData();
 };
 
+const setMode = (nextMode) => {
+    mode.value = nextMode;
+};
+
+const startNewCharacter = () => {
+    setMode('characters');
+    selectedCharacterId.value = null;
+    characterDraft.value = {
+        name: '',
+        notes: '',
+        book_ids: [],
+    };
+};
+
+const selectCharacter = (character) => {
+    setMode('characters');
+    selectedCharacterId.value = character.id;
+    characterDraft.value = {
+        name: character.name || '',
+        notes: character.notes || '',
+        book_ids: (character.books || []).map((book) => book.id),
+    };
+};
+
+const saveCharacter = async () => {
+    const payload = {
+        name: characterDraft.value.name?.trim(),
+        notes: characterDraft.value.notes?.trim() || null,
+        book_ids: characterDraft.value.book_ids || [],
+    };
+    if (!payload.name) {
+        return;
+    }
+    const isNew = !selectedCharacterId.value;
+    const url = isNew ? '/api/characters' : `/api/characters/${selectedCharacterId.value}`;
+    const method = isNew ? 'POST' : 'PATCH';
+    const response = await fetch(url, {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken(),
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+        const text = await response.text();
+        error.value = `Save failed (${response.status}). ${text.slice(0, 200)}`;
+        return;
+    }
+    const saved = await response.json();
+    await loadData();
+    selectedCharacterId.value = saved.id;
+    mode.value = 'characters';
+};
+
+const deleteCharacter = async () => {
+    if (!selectedCharacterId.value) {
+        return;
+    }
+    const name = selectedCharacter.value?.name || 'this character';
+    const confirmed = window.confirm(`Delete "${name}"?`);
+    if (!confirmed) {
+        return;
+    }
+    await fetch(`/api/characters/${selectedCharacterId.value}`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': getCsrfToken(),
+        },
+        credentials: 'same-origin',
+    });
+    await loadData();
+    selectedCharacterId.value = null;
+    characterDraft.value = { name: '', notes: '', book_ids: [] };
+    mode.value = 'writing';
+};
+
 const updateChapterField = async (chapterId, payload, { refresh = false, applyLocal = true } = {}) => {
     const response = await fetch(`/api/chapters/${chapterId}`, {
         method: 'PATCH',
@@ -158,6 +253,36 @@ const updateChapterField = async (chapterId, payload, { refresh = false, applyLo
     }
     if (refresh) {
         await loadData();
+    }
+};
+
+const updateBookTitle = async () => {
+    const book = activeBook.value;
+    if (!book) {
+        return;
+    }
+    const value = bookTitleDraft.value.trim();
+    if (!value || value === book.title) {
+        return;
+    }
+    const response = await fetch(`/books/${book.id}`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken(),
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ title: value }),
+    });
+    if (!response.ok) {
+        const text = await response.text();
+        error.value = `Save failed (${response.status}). ${text.slice(0, 200)}`;
+        return;
+    }
+    const updated = await response.json();
+    const index = books.value.findIndex((item) => item.id === updated.id);
+    if (index !== -1) {
+        books.value.splice(index, 1, { ...books.value[index], ...updated });
     }
 };
 const toggleBook = (bookId) => {
@@ -296,6 +421,12 @@ const ensureEditor = async () => {
         isDirty.value = true;
         queueContentSave();
     });
+    if (!editorScrollBound.value && editorInstance.value.root) {
+        editorInstance.value.root.addEventListener('scroll', () => {
+            isHeadingFaded.value = editorInstance.value.root.scrollTop > 40;
+        });
+        editorScrollBound.value = true;
+    }
     editorInitInProgress.value = false;
 };
 
@@ -321,6 +452,7 @@ const syncEditor = () => {
         editorInstance.value.setText(content, 'silent');
     }
     isDirty.value = false;
+    isHeadingFaded.value = false;
     isSyncingEditor.value = false;
 };
 
@@ -339,10 +471,26 @@ watch(selectedChapterId, async () => {
     await ensureEditor();
     syncEditor();
     titleDraft.value = selectedChapter.value?.title || '';
+    bookTitleDraft.value = activeBook.value?.title || '';
     positionDraft.value =
         selectedChapter.value && selectedChapter.value.position !== null
             ? String(selectedChapter.value.position + 1)
             : '';
+});
+
+watch(selectedBookId, () => {
+    bookTitleDraft.value = activeBook.value?.title || '';
+});
+
+watch(selectedCharacterId, () => {
+    if (!selectedCharacter.value) {
+        return;
+    }
+    characterDraft.value = {
+        name: selectedCharacter.value.name || '',
+        notes: selectedCharacter.value.notes || '',
+        book_ids: (selectedCharacter.value.books || []).map((book) => book.id),
+    };
 });
 
 watch(siteFontSize, () => {
@@ -423,11 +571,14 @@ watch(siteFontSize, () => {
                                     <button
                                         class="flex flex-1 items-center gap-2 rounded-xl px-[10px] py-1 text-left text-xs transition"
                                         :class="
-                                            selectedChapterId === chapter.id
+                                            selectedChapterId === chapter.id && mode === 'writing'
                                                 ? 'bg-ink text-paper'
                                                 : 'text-ink/60 hover:bg-ink/10 hover:text-ink'
                                         "
-                                        @click="selectedChapterId = chapter.id"
+                                        @click="
+                                            selectedChapterId = chapter.id;
+                                            mode = 'writing';
+                                        "
                                     >
                                         <span>📄</span>
                                         <span class="truncate">{{ chapter.title }}</span>
@@ -449,7 +600,7 @@ watch(siteFontSize, () => {
 
                 <div>
                     <p class="text-xs uppercase tracking-[0.35em] text-ink/50">Characters</p>
-                    <div class="mt-3 space-y-1 text-xs text-ink/60">
+                    <div class="mt-3 space-y-2 text-xs text-ink/60">
                         <div class="flex items-center gap-2 text-sm text-ink/70">
                             <button
                                 class="flex h-6 w-6 items-center justify-center rounded-full border border-ink/20 text-xs leading-none text-ink/60"
@@ -459,12 +610,28 @@ watch(siteFontSize, () => {
                             </button>
                             <span class="text-lg">📁</span>
                             <span>Characters</span>
+                            <button
+                                class="ml-auto rounded-full border border-ink/20 px-2 py-1 text-[0.6rem] uppercase tracking-[0.18em] text-ink/60"
+                                @click="startNewCharacter"
+                            >
+                                +
+                            </button>
                         </div>
                         <div v-if="charactersOpen" class="ml-6 space-y-1">
-                            <div v-for="character in characters" :key="character.id" class="flex items-center gap-2">
+                            <button
+                                v-for="character in characters"
+                                :key="character.id"
+                                class="flex w-full items-center gap-2 rounded-xl px-[10px] py-1 text-left text-xs transition"
+                                :class="
+                                    selectedCharacterId === character.id && mode === 'characters'
+                                        ? 'bg-ink text-paper'
+                                        : 'text-ink/60 hover:bg-ink/10 hover:text-ink'
+                                "
+                                @click="selectCharacter(character)"
+                            >
                                 <span>📄</span>
                                 <span class="truncate">{{ character.name }}</span>
-                            </div>
+                            </button>
                             <div v-if="!characters.length && !loading" class="text-ink/40">No characters yet</div>
                         </div>
                     </div>
@@ -474,8 +641,10 @@ watch(siteFontSize, () => {
             <section class="editor-panel space-y-4 rounded-[26px] border border-ink/10 bg-white/70 p-4 shadow-[0_30px_80px_rgba(61,60,52,0.18)] backdrop-blur">
                 <div>
                     <div class="flex items-center justify-between">
-                        <p class="text-xs uppercase tracking-[0.3em] text-ink/50">Editor</p>
-                        <div class="flex items-center gap-2 text-xs text-ink/50">
+                        <p class="text-xs uppercase tracking-[0.3em] text-ink/50">
+                            {{ mode === 'characters' ? 'Character' : 'Editor' }}
+                        </p>
+                        <div class="flex items-center gap-2 text-xs text-ink/50" v-if="mode === 'writing'">
                             <span v-if="selectedChapter">
                                 {{ isSaving ? 'Saving…' : isDirty ? 'Unsaved changes' : 'Saved' }}
                             </span>
@@ -497,14 +666,73 @@ watch(siteFontSize, () => {
                             </button>
                         </div>
                     </div>
-                    <div class="editor-shell mt-3 rounded-3xl border border-ink/10 bg-white/90">
-                        <div v-if="selectedChapter" class="editor-heading">
+
+                    <div v-show="mode === 'writing'" class="editor-shell mt-3 rounded-3xl border border-ink/10 bg-white/90">
+                        <div
+                            v-if="selectedChapter"
+                            class="editor-heading"
+                            :class="{ 'editor-heading--faded': isHeadingFaded }"
+                        >
                             <p class="editor-heading__label">
                                 Chapter {{ (selectedChapter.position ?? 0) + 1 }}
                             </p>
                             <p class="editor-heading__title">{{ selectedChapter.title }}</p>
                         </div>
                         <div ref="editorEl" class="quill-editor min-h-[520px]"></div>
+                    </div>
+
+                    <div v-if="mode === 'characters'" class="mt-3 space-y-4 rounded-3xl border border-ink/10 bg-white/90 p-4">
+                        <div>
+                            <label class="text-xs uppercase tracking-[0.3em] text-ink/40">Name</label>
+                            <input
+                                v-model="characterDraft.name"
+                                class="mt-2 w-full rounded-2xl border border-ink/10 bg-white/90 px-3 py-2 text-base"
+                                placeholder="Character name"
+                            />
+                        </div>
+                        <div>
+                            <label class="text-xs uppercase tracking-[0.3em] text-ink/40">Notes</label>
+                            <textarea
+                                v-model="characterDraft.notes"
+                                class="mt-2 h-40 w-full resize-none rounded-2xl border border-ink/10 bg-white/90 px-3 py-2 text-base"
+                                placeholder="Traits, backstory, voice notes..."
+                            ></textarea>
+                        </div>
+                        <div>
+                            <label class="text-xs uppercase tracking-[0.3em] text-ink/40">Books</label>
+                            <div class="mt-2 space-y-2 text-sm text-ink/70">
+                                <label v-for="book in books" :key="book.id" class="flex items-center gap-2">
+                                    <input
+                                        v-model="characterDraft.book_ids"
+                                        type="checkbox"
+                                        :value="book.id"
+                                    />
+                                    <span>{{ book.title }}</span>
+                                </label>
+                                <div v-if="!books.length" class="text-xs text-ink/50">No books yet.</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button
+                                class="rounded-full bg-ink px-4 py-2 text-xs uppercase tracking-[0.2em] text-paper"
+                                @click="saveCharacter"
+                            >
+                                Save character
+                            </button>
+                            <button
+                                class="rounded-full border border-ink/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-ink/70"
+                                @click="mode = 'writing'"
+                            >
+                                Back to writing
+                            </button>
+                            <button
+                                v-if="selectedCharacterId"
+                                class="ml-auto rounded-full border border-ink/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-ink/70"
+                                @click="deleteCharacter"
+                            >
+                                Delete
+                            </button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -544,14 +772,18 @@ watch(siteFontSize, () => {
                     </div>
                 </div>
 
-                <div class="rounded-2xl border border-ink/10 bg-paper/70 px-3 py-4 text-sm">
+                <div v-if="mode === 'writing'" class="rounded-2xl border border-ink/10 bg-paper/70 px-3 py-4 text-sm">
                     <p class="text-xs uppercase tracking-[0.3em] text-ink/40">Context</p>
                     <div class="mt-3 space-y-3">
                         <div>
-                            <p class="text-xs uppercase tracking-[0.3em] text-ink/40">Book</p>
-                            <p class="mt-1 text-base font-semibold text-ink">
-                                {{ selectedChapter?.book?.title || selectedBook?.title || 'All books' }}
-                            </p>
+                            <label class="text-xs uppercase tracking-[0.3em] text-ink/40">Book</label>
+                            <input
+                                v-model="bookTitleDraft"
+                                class="mt-1 w-full rounded-2xl border border-ink/10 bg-white/80 px-3 py-2 text-base"
+                                :disabled="!activeBook"
+                                :placeholder="activeBook ? 'Book title' : 'All books'"
+                                @input="scheduleSave('book-title', async () => { await updateBookTitle(); })"
+                            />
                         </div>
                         <div>
                             <label class="text-xs uppercase tracking-[0.3em] text-ink/40">Chapter title</label>
@@ -594,6 +826,33 @@ watch(siteFontSize, () => {
                         <div class="rounded-2xl border border-ink/10 bg-white/80 px-3 py-2 text-xs text-ink/60">
                             {{ bookStats.title }} · {{ bookStats.chapters }} chapters
                         </div>
+                        <a
+                            v-if="activeBook"
+                            class="inline-flex items-center justify-center rounded-full border border-ink/20 px-3 py-2 text-xs uppercase tracking-[0.2em] text-ink/70"
+                            :href="`/books/${activeBook.id}/export/pdf`"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            Export PDF
+                        </a>
+                    </div>
+                </div>
+
+                <div v-else class="rounded-2xl border border-ink/10 bg-paper/70 px-3 py-4 text-sm">
+                    <p class="text-xs uppercase tracking-[0.3em] text-ink/40">Character</p>
+                    <div class="mt-3 space-y-2 text-sm text-ink/70">
+                        <p class="text-base font-semibold text-ink">
+                            {{ selectedCharacter?.name || 'New character' }}
+                        </p>
+                        <p class="text-xs text-ink/50">
+                            {{ (characterDraft.book_ids || []).length }} linked books
+                        </p>
+                        <button
+                            class="mt-2 rounded-full border border-ink/20 px-3 py-2 text-xs uppercase tracking-[0.2em] text-ink/70"
+                            @click="mode = 'writing'"
+                        >
+                            Back to writing
+                        </button>
                     </div>
                 </div>
             </aside>
