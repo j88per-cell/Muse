@@ -24,6 +24,13 @@
     }
 }
 
+[data-theme='dark'] {
+    --paper: #151413;
+    --ink: #f4efe5;
+    --accent: #c97a49;
+    --shadow: rgba(10, 9, 8, 0.6);
+}
+
 .font-editor {
     font-family: var(--font-serif);
 }
@@ -49,6 +56,91 @@
         linear-gradient(120deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 55%);
     pointer-events: none;
     z-index: 0;
+}
+
+[data-theme='dark'] .page-grid {
+    background-image:
+        radial-gradient(circle at 20% 20%, rgba(93, 68, 55, 0.35) 0%, transparent 55%),
+        radial-gradient(circle at 80% 10%, rgba(92, 70, 52, 0.25) 0%, transparent 50%),
+        linear-gradient(120deg, rgba(23, 20, 18, 0.6) 0%, rgba(23, 20, 18, 0) 55%);
+}
+
+[data-theme='dark'] .sidebar-panel,
+[data-theme='dark'] .editor-panel {
+    background: rgba(34, 31, 28, 0.78);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .editor-shell {
+    background: rgba(24, 22, 20, 0.92);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .ql-toolbar,
+[data-theme='dark'] .ql-container {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .ql-toolbar {
+    background: rgba(22, 20, 18, 0.65);
+    border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme='dark'] .ql-toolbar .ql-picker,
+[data-theme='dark'] .ql-toolbar button {
+    color: rgba(244, 239, 229, 0.8);
+}
+
+[data-theme='dark'] .ql-toolbar button .ql-stroke,
+[data-theme='dark'] .ql-toolbar .ql-picker .ql-stroke {
+    stroke: rgba(244, 239, 229, 0.8);
+}
+
+[data-theme='dark'] .ql-toolbar button .ql-fill,
+[data-theme='dark'] .ql-toolbar .ql-picker .ql-fill {
+    fill: rgba(244, 239, 229, 0.8);
+}
+
+[data-theme='dark'] .ql-toolbar button:hover,
+[data-theme='dark'] .ql-toolbar button.ql-active {
+    color: rgba(244, 239, 229, 1);
+}
+
+[data-theme='dark'] .ql-toolbar button:hover .ql-stroke,
+[data-theme='dark'] .ql-toolbar button.ql-active .ql-stroke {
+    stroke: rgba(244, 239, 229, 1);
+}
+
+[data-theme='dark'] .ql-toolbar button:hover .ql-fill,
+[data-theme='dark'] .ql-toolbar button.ql-active .ql-fill {
+    fill: rgba(244, 239, 229, 1);
+}
+
+[data-theme='dark'] .ql-editor {
+    color: var(--ink);
+}
+
+[data-theme='dark'] input,
+[data-theme='dark'] textarea,
+[data-theme='dark'] select {
+    background: rgba(22, 20, 18, 0.9);
+    color: var(--ink);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type='number'] {
+    -moz-appearance: textfield;
+}
+
+[data-theme='dark'] .editor-heading__label {
+    color: rgba(244, 239, 229, 0.6);
 }
 
 .app-shell {

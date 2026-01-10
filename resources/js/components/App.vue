@@ -23,6 +23,7 @@ const characterDraft = ref({
     notes: '',
     book_ids: [],
 });
+const theme = ref('light');
 
 const editorEl = ref(null);
 const editorInstance = ref(null);
@@ -460,11 +461,19 @@ const applySiteFontSize = () => {
     document.documentElement.style.fontSize = `${siteFontSize.value}px`;
 };
 
+const applyTheme = () => {
+    document.documentElement.dataset.theme = theme.value;
+    localStorage.setItem('muse-theme', theme.value);
+};
+
 onMounted(async () => {
     await loadData();
     await ensureEditor();
     syncEditor();
     applySiteFontSize();
+    const storedTheme = localStorage.getItem('muse-theme');
+    theme.value = storedTheme || 'light';
+    applyTheme();
 });
 
 watch(selectedChapterId, async () => {
@@ -495,6 +504,10 @@ watch(selectedCharacterId, () => {
 
 watch(siteFontSize, () => {
     applySiteFontSize();
+});
+
+watch(theme, () => {
+    applyTheme();
 });
 </script>
 
@@ -742,6 +755,25 @@ watch(siteFontSize, () => {
                     <p class="text-xs uppercase tracking-[0.35em] text-ink/50">Settings</p>
                     <div class="mt-4 space-y-4 text-sm">
                         <label class="block">
+                            <span class="text-xs uppercase tracking-[0.3em] text-ink/40">Theme</span>
+                            <div class="mt-2 flex items-center gap-2">
+                                <button
+                                    class="flex-1 rounded-2xl border border-ink/15 px-3 py-2 text-xs uppercase tracking-[0.2em]"
+                                    :class="theme === 'light' ? 'bg-ink text-paper' : 'text-ink/60'"
+                                    @click="theme = 'light'"
+                                >
+                                    Light
+                                </button>
+                                <button
+                                    class="flex-1 rounded-2xl border border-ink/15 px-3 py-2 text-xs uppercase tracking-[0.2em]"
+                                    :class="theme === 'dark' ? 'bg-ink text-paper' : 'text-ink/60'"
+                                    @click="theme = 'dark'"
+                                >
+                                    Dark
+                                </button>
+                            </div>
+                        </label>
+                        <label class="block">
                             <span class="text-xs uppercase tracking-[0.3em] text-ink/40">Site font size</span>
                             <div class="mt-2 flex items-center gap-3">
                                 <input
@@ -834,6 +866,14 @@ watch(siteFontSize, () => {
                             rel="noopener"
                         >
                             Export PDF
+                        </a>
+                        <a
+                            class="inline-flex items-center justify-center rounded-full border border-ink/20 px-3 py-2 text-xs uppercase tracking-[0.2em] text-ink/70"
+                            href="/exports/backup"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            Export Backup (folder)
                         </a>
                     </div>
                 </div>

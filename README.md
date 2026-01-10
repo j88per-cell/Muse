@@ -2,6 +2,12 @@
 
 Local creative writing workspace built with Laravel + Vue + Quill.
 
+I created muse after struggling to find an application to write.  I was using various tools including word, libre office, and more.  Eventually settling on Wonderpen until it refused to start and scared me I'd lost dozens of stories.
+I just want something simple to be able to write.  Without fear that paste will change formats, fonts, sizes.  To not have to struggle with inconsistent formatting rules. And that is the thinking behind Muse.  
+I'm happy to have recovered my works and can return to them and enjoy writing more with Muse.
+
+For now, this is *alpha* level software.  The target will be either an electron or Tauri 'app' for people to run on their machine.  With export and backup capabilities that are open, non-proprietary.  
+
 ![Muse main page](docs/Muse%20main%20page.png)
 
 ## Install
@@ -36,7 +42,6 @@ Open `http://localhost:8000`.
 ## Notes
 
 - SQLite database lives at `database/database.sqlite`.
-- Redis is optional; this is designed for local/electron-style use.
 
 ## Features
 
@@ -45,6 +50,7 @@ Open `http://localhost:8000`.
 - Characters catalog (multi-book ready).
 - WonderPen import command for legacy content review.
 - PDF export for full books.
+- Manual backup export (Markdown + JSON).
 
 ## Roadmap
 
@@ -69,7 +75,6 @@ Open `http://localhost:8000`.
 - Draft comparison / revision history.
 - Editor-focused scrolling (sidebars fixed).
 - Split Vue app into layout + page components (avoid monolithic SFC).
-- Optional dark mode theme.
 
 ### Release
 
@@ -83,9 +88,10 @@ php artisan import:wonderpen --fresh
 
 ## Exports
 
-Planned: PDF export (and EPUB if feasible).
+Manual backup export:
 
-- Drag and drop chapter ordering.
-- Notes management per story.
-- Character management across multiple stories.
-- Export as PDF (and EPUB if feasible).
+```sh
+http://localhost:8000/exports/backup
+```
+
+The export writes to a local folder under `storage/app/exports/` and returns the path in JSON.

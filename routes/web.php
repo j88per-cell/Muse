@@ -6,6 +6,7 @@ use App\Http\Controllers\ChapterController;
 use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\BackupController;
 
 Route::get('/', function () {
     return view('app');
@@ -15,6 +16,7 @@ Route::apiResource('books', BookController::class)
     ->only(['index', 'store', 'update', 'destroy']);
 
 Route::get('books/{book}/export/pdf', [ExportController::class, 'bookPdf']);
+Route::get('exports/backup', [BackupController::class, 'export']);
 
 Route::prefix('api')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index']);
