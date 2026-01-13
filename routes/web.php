@@ -7,6 +7,7 @@ use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\NoteController;
 
 Route::get('/', function () {
     return view('app');
@@ -28,4 +29,8 @@ Route::prefix('api')->group(function () {
     Route::post('characters', [CharacterController::class, 'store']);
     Route::patch('characters/{character}', [CharacterController::class, 'update']);
     Route::delete('characters/{character}', [CharacterController::class, 'destroy']);
+    Route::get('notes', [NoteController::class, 'index']);
+    Route::post('notes', [NoteController::class, 'store']);
+    Route::patch('notes/{note}', [NoteController::class, 'update']);
+    Route::delete('notes/{note}', [NoteController::class, 'destroy']);
 });

@@ -48,6 +48,7 @@ Open `http://localhost:8000`.
 - Book and chapter organization with live editing.
 - Quill editor with autosave and manual save.
 - Characters catalog (multi-book ready).
+- Notes per story (plain text).
 - WonderPen import command for legacy content review.
 - PDF export for full books.
 - Manual backup export (Markdown + JSON).
@@ -57,7 +58,6 @@ Open `http://localhost:8000`.
 ### Writing
 
 - Drag and drop chapter ordering.
-- Notes management per story.
 - Character management across multiple stories.
 - Export as EPUB (if feasible).
 - Focus mode, hide both sidebars.

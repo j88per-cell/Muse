@@ -6,6 +6,7 @@ import 'quill/dist/quill.snow.css';
 const books = ref([]);
 const chapters = ref([]);
 const characters = ref([]);
+const notes = ref([]);
 const stats = ref(null);
 const loading = ref(true);
 const error = ref(null);
@@ -16,12 +17,19 @@ const siteFontSize = ref(18);
 const editorFontSize = ref(24);
 const openBooks = ref({});
 const charactersOpen = ref(true);
+const notesOpen = ref(true);
 const mode = ref('writing');
 const selectedCharacterId = ref(null);
+const selectedNoteId = ref(null);
 const characterDraft = ref({
     name: '',
     notes: '',
     book_ids: [],
+});
+const noteDraft = ref({
+    title: '',
+    body: '',
+    book_id: '',
 });
 const theme = ref('light');
 
@@ -69,12 +77,20 @@ const selectedChapter = computed(() => {
 const selectedCharacter = computed(() => {
     return characters.value.find((character) => character.id === selectedCharacterId.value) || null;
 });
+
+const selectedNote = computed(() => {
+    return notes.value.find((note) => note.id === selectedNoteId.value) || null;
+});
 const selectedBook = computed(() => {
     return books.value.find((book) => book.id === selectedBookId.value) || null;
 });
 
 const activeBook = computed(() => {
     return selectedChapter.value?.book || selectedBook.value || null;
+});
+
+const noteBook = computed(() => {
+    return books.value.find((book) => book.id === noteDraft.value.book_id) || null;
 });
 
 const bookStats = computed(() => {
@@ -90,20 +106,29 @@ const bookStats = computed(() => {
     };
 });
 
+const visibleNotes = computed(() => {
+    if (!activeBook.value) {
+        return notes.value;
+    }
+    return notes.value.filter((note) => note.book_id === activeBook.value.id);
+});
+
 const loadData = async () => {
     try {
         loading.value = true;
-        const [statsRes, booksRes, chaptersRes, charactersRes] = await Promise.all([
+        const [statsRes, booksRes, chaptersRes, charactersRes, notesRes] = await Promise.all([
             fetch('/api/dashboard'),
             fetch('/books'),
             fetch('/api/chapters'),
             fetch('/api/characters'),
+            fetch('/api/notes'),
         ]);
 
         stats.value = await statsRes.json();
         books.value = await booksRes.json();
         chapters.value = await chaptersRes.json();
         characters.value = await charactersRes.json();
+        notes.value = await notesRes.json();
 
         if (!selectedChapterId.value && chapters.value.length > 0) {
             selectedChapterId.value = chapters.value[0].id;
@@ -223,6 +248,110 @@ const deleteCharacter = async () => {
     selectedCharacterId.value = null;
     characterDraft.value = { name: '', notes: '', book_ids: [] };
     mode.value = 'writing';
+};
+
+const toggleNotes = () => {
+    notesOpen.value = !notesOpen.value;
+};
+
+const startNewNote = () => {
+    setMode('notes');
+    selectedNoteId.value = null;
+    noteDraft.value = {
+        title: '',
+        body: '',
+        book_id: activeBook.value?.id || books.value[0]?.id || '',
+    };
+};
+
+const selectNote = (note) => {
+    setMode('notes');
+    selectedNoteId.value = note.id;
+    noteDraft.value = {
+        title: note.title || '',
+        body: note.body || '',
+        book_id: note.book_id,
+    };
+};
+
+const saveNote = async () => {
+    const payload = {
+        title: noteDraft.value.title?.trim() || null,
+        body: noteDraft.value.body?.trim() || null,
+        book_id: noteDraft.value.book_id,
+    };
+    if (!payload.book_id) {
+        error.value = 'Select a book for this note.';
+        return;
+    }
+    const isNew = !selectedNoteId.value;
+    const url = isNew ? '/api/notes' : `/api/notes/${selectedNoteId.value}`;
+    const method = isNew ? 'POST' : 'PATCH';
+    const response = await fetch(url, {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken(),
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+        const text = await response.text();
+        error.value = `Save failed (${response.status}). ${text.slice(0, 200)}`;
+        return;
+    }
+    const saved = await response.json();
+    await loadData();
+    selectedNoteId.value = saved.id;
+    mode.value = 'notes';
+};
+
+const deleteNote = async (note = null) => {
+    const noteId = note?.id || selectedNoteId.value;
+    if (!noteId) {
+        return;
+    }
+    const title = note?.title || noteDraft.value.title || 'this note';
+    const confirmed = window.confirm(`Delete "${title}"?`);
+    if (!confirmed) {
+        return;
+    }
+    await fetch(`/api/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': getCsrfToken(),
+        },
+        credentials: 'same-origin',
+    });
+    await loadData();
+    if (selectedNoteId.value === noteId) {
+        selectedNoteId.value = null;
+        noteDraft.value = { title: '', body: '', book_id: '' };
+        mode.value = 'writing';
+    }
+};
+
+const createBook = async () => {
+    const title = window.prompt('New book title');
+    if (!title) {
+        return;
+    }
+    const response = await fetch('/books', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': getCsrfToken(),
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ title }),
+    });
+    if (!response.ok) {
+        const text = await response.text();
+        error.value = `Save failed (${response.status}). ${text.slice(0, 200)}`;
+        return;
+    }
+    await loadData();
 };
 
 const updateChapterField = async (chapterId, payload, { refresh = false, applyLocal = true } = {}) => {
@@ -502,6 +631,17 @@ watch(selectedCharacterId, () => {
     };
 });
 
+watch(selectedNoteId, () => {
+    if (!selectedNote.value) {
+        return;
+    }
+    noteDraft.value = {
+        title: selectedNote.value.title || '',
+        body: selectedNote.value.body || '',
+        book_id: selectedNote.value.book_id,
+    };
+});
+
 watch(siteFontSize, () => {
     applySiteFontSize();
 });
@@ -590,6 +730,7 @@ watch(theme, () => {
                                         "
                                         @click="
                                             selectedChapterId = chapter.id;
+                                            selectedNoteId = null;
                                             mode = 'writing';
                                         "
                                     >
@@ -649,13 +790,66 @@ watch(theme, () => {
                         </div>
                     </div>
                 </div>
+
+                <div>
+                    <p class="text-xs uppercase tracking-[0.35em] text-ink/50">Notes</p>
+                    <div class="mt-3 space-y-2 text-xs text-ink/60">
+                        <div class="flex items-center gap-2 text-sm text-ink/70">
+                            <button
+                                class="flex h-6 w-6 items-center justify-center rounded-full border border-ink/20 text-xs leading-none text-ink/60"
+                                @click="toggleNotes"
+                            >
+                                {{ notesOpen ? '−' : '+' }}
+                            </button>
+                            <span class="text-lg">📁</span>
+                            <span>Notes</span>
+                            <button
+                                class="ml-auto rounded-full border border-ink/20 px-2 py-1 text-[0.6rem] uppercase tracking-[0.18em] text-ink/60"
+                                @click="startNewNote"
+                            >
+                                +
+                            </button>
+                        </div>
+                        <div v-if="notesOpen" class="ml-6 space-y-1">
+                            <button
+                                v-for="note in visibleNotes"
+                                :key="note.id"
+                                class="flex w-full items-center gap-2 rounded-xl px-[10px] py-1 text-left text-xs transition"
+                                :class="
+                                    selectedNoteId === note.id && mode === 'notes'
+                                        ? 'bg-ink text-paper'
+                                        : 'text-ink/60 hover:bg-ink/10 hover:text-ink'
+                                "
+                                @click="selectNote(note)"
+                            >
+                                <span>🗒️</span>
+                                <span class="truncate">{{ note.title || 'Untitled note' }}</span>
+                            </button>
+                            <button
+                                v-for="note in visibleNotes"
+                                :key="`${note.id}-delete`"
+                                class="ml-8 rounded-full border border-ink/20 px-2 py-1 text-[0.55rem] uppercase tracking-[0.18em] text-ink/50"
+                                @click="deleteNote(note)"
+                            >
+                                Delete
+                            </button>
+                            <div v-if="!visibleNotes.length && !loading" class="text-ink/40">No notes yet</div>
+                        </div>
+                    </div>
+                </div>
             </aside>
 
             <section class="editor-panel space-y-4 rounded-[26px] border border-ink/10 bg-white/70 p-4 shadow-[0_30px_80px_rgba(61,60,52,0.18)] backdrop-blur">
                 <div>
                     <div class="flex items-center justify-between">
                         <p class="text-xs uppercase tracking-[0.3em] text-ink/50">
-                            {{ mode === 'characters' ? 'Character' : 'Editor' }}
+                            {{
+                                mode === 'characters'
+                                    ? 'Character'
+                                    : mode === 'notes'
+                                        ? 'Note'
+                                        : 'Editor'
+                            }}
                         </p>
                         <div class="flex items-center gap-2 text-xs text-ink/50" v-if="mode === 'writing'">
                             <span v-if="selectedChapter">
@@ -742,6 +936,58 @@ watch(theme, () => {
                                 v-if="selectedCharacterId"
                                 class="ml-auto rounded-full border border-ink/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-ink/70"
                                 @click="deleteCharacter"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-if="mode === 'notes'" class="mt-3 space-y-4 rounded-3xl border border-ink/10 bg-white/90 p-4">
+                        <div>
+                            <label class="text-xs uppercase tracking-[0.3em] text-ink/40">Title</label>
+                            <input
+                                v-model="noteDraft.title"
+                                class="mt-2 w-full rounded-2xl border border-ink/10 bg-white/90 px-3 py-2 text-base"
+                                placeholder="Note title"
+                            />
+                        </div>
+                        <div>
+                            <label class="text-xs uppercase tracking-[0.3em] text-ink/40">Book</label>
+                            <select
+                                v-model="noteDraft.book_id"
+                                class="mt-2 w-full rounded-2xl border border-ink/10 bg-white/90 px-3 py-2 text-base"
+                            >
+                                <option value="" disabled>Select a book</option>
+                                <option v-for="book in books" :key="book.id" :value="book.id">
+                                    {{ book.title }}
+                                </option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs uppercase tracking-[0.3em] text-ink/40">Note</label>
+                            <textarea
+                                v-model="noteDraft.body"
+                                class="mt-2 h-48 w-full resize-none rounded-2xl border border-ink/10 bg-white/90 px-3 py-2 text-base"
+                                placeholder="Plain text note..."
+                            ></textarea>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button
+                                class="rounded-full bg-ink px-4 py-2 text-xs uppercase tracking-[0.2em] text-paper"
+                                @click="saveNote"
+                            >
+                                Save note
+                            </button>
+                            <button
+                                class="rounded-full border border-ink/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-ink/70"
+                                @click="mode = 'writing'"
+                            >
+                                Back to writing
+                            </button>
+                            <button
+                                v-if="selectedNoteId"
+                                class="ml-auto rounded-full border border-ink/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-ink/70"
+                                @click="deleteNote"
                             >
                                 Delete
                             </button>
@@ -878,7 +1124,7 @@ watch(theme, () => {
                     </div>
                 </div>
 
-                <div v-else class="rounded-2xl border border-ink/10 bg-paper/70 px-3 py-4 text-sm">
+                <div v-else-if="mode === 'characters'" class="rounded-2xl border border-ink/10 bg-paper/70 px-3 py-4 text-sm">
                     <p class="text-xs uppercase tracking-[0.3em] text-ink/40">Character</p>
                     <div class="mt-3 space-y-2 text-sm text-ink/70">
                         <p class="text-base font-semibold text-ink">
@@ -886,6 +1132,24 @@ watch(theme, () => {
                         </p>
                         <p class="text-xs text-ink/50">
                             {{ (characterDraft.book_ids || []).length }} linked books
+                        </p>
+                        <button
+                            class="mt-2 rounded-full border border-ink/20 px-3 py-2 text-xs uppercase tracking-[0.2em] text-ink/70"
+                            @click="mode = 'writing'"
+                        >
+                            Back to writing
+                        </button>
+                    </div>
+                </div>
+
+                <div v-else class="rounded-2xl border border-ink/10 bg-paper/70 px-3 py-4 text-sm">
+                    <p class="text-xs uppercase tracking-[0.3em] text-ink/40">Note</p>
+                    <div class="mt-3 space-y-2 text-sm text-ink/70">
+                        <p class="text-base font-semibold text-ink">
+                            {{ noteDraft.title || 'Untitled note' }}
+                        </p>
+                        <p class="text-xs text-ink/50">
+                            {{ noteBook?.title || 'No book selected' }}
                         </p>
                         <button
                             class="mt-2 rounded-full border border-ink/20 px-3 py-2 text-xs uppercase tracking-[0.2em] text-ink/70"
