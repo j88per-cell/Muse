@@ -149,7 +149,8 @@ input[type='number'] {
 }
 
 .sidebar-panel {
-    overflow: hidden;
+    overflow-y: auto;
+    height: 100%;
 }
 
 .editor-panel {

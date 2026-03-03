@@ -16,8 +16,8 @@ const selectedChapterId = ref(null);
 const siteFontSize = ref(18);
 const editorFontSize = ref(24);
 const openBooks = ref({});
-const charactersOpen = ref(true);
-const notesOpen = ref(true);
+const bookCharactersOpen = ref({});
+const bookNotesOpen = ref({});
 const mode = ref('writing');
 const selectedCharacterId = ref(null);
 const selectedNoteId = ref(null);
@@ -113,6 +113,33 @@ const visibleNotes = computed(() => {
     return notes.value.filter((note) => note.book_id === activeBook.value.id);
 });
 
+const charactersByBook = computed(() => {
+    const groups = {};
+    for (const character of characters.value) {
+        const bookIds = (character.books || []).map((book) => book.id);
+        for (const bookId of bookIds) {
+            if (!groups[bookId]) {
+                groups[bookId] = [];
+            }
+            groups[bookId].push(character);
+        }
+    }
+    return groups;
+});
+
+const notesByBook = computed(() => {
+    const groups = {};
+    for (const note of notes.value) {
+        if (note.book_id) {
+            if (!groups[note.book_id]) {
+                groups[note.book_id] = [];
+            }
+            groups[note.book_id].push(note);
+        }
+    }
+    return groups;
+});
+
 const loadData = async () => {
     try {
         loading.value = true;
@@ -135,10 +162,16 @@ const loadData = async () => {
         }
         if (Object.keys(openBooks.value).length === 0) {
             const next = {};
+            const nextCharacters = {};
+            const nextNotes = {};
             for (const book of books.value) {
                 next[book.id] = false;
+                nextCharacters[book.id] = false;
+                nextNotes[book.id] = false;
             }
             openBooks.value = next;
+            bookCharactersOpen.value = nextCharacters;
+            bookNotesOpen.value = nextNotes;
         }
     } catch (err) {
         error.value = err?.message || 'Failed to load dashboard data.';
@@ -250,9 +283,6 @@ const deleteCharacter = async () => {
     mode.value = 'writing';
 };
 
-const toggleNotes = () => {
-    notesOpen.value = !notesOpen.value;
-};
 
 const startNewNote = () => {
     setMode('notes');
@@ -422,8 +452,18 @@ const toggleBook = (bookId) => {
     };
 };
 
-const toggleCharacters = () => {
-    charactersOpen.value = !charactersOpen.value;
+const toggleBookCharacters = (bookId) => {
+    bookCharactersOpen.value = {
+        ...bookCharactersOpen.value,
+        [bookId]: !bookCharactersOpen.value[bookId],
+    };
+};
+
+const toggleBookNotes = (bookId) => {
+    bookNotesOpen.value = {
+        ...bookNotesOpen.value,
+        [bookId]: !bookNotesOpen.value[bookId],
+    };
 };
 
 const deleteBook = async (book) => {
@@ -667,7 +707,15 @@ watch(theme, () => {
         >
             <aside class="sidebar-panel space-y-5 rounded-3xl border border-ink/10 bg-white/70 p-4 shadow-[0_20px_60px_rgba(51,48,41,0.12)] backdrop-blur">
                 <div>
-                    <p class="text-xs uppercase tracking-[0.35em] text-ink/50">Library</p>
+                    <div class="flex items-center justify-between">
+                        <p class="text-xs uppercase tracking-[0.35em] text-ink/50">Library</p>
+                        <button
+                            class="rounded-full border border-ink/20 px-3 py-1 text-[0.6rem] uppercase tracking-[0.18em] text-ink/60 transition hover:border-ink/40 hover:text-ink"
+                            @click="createBook"
+                        >
+                            New book
+                        </button>
+                    </div>
                     <div class="mt-4 space-y-3 text-sm">
                         <button
                             class="flex w-full items-center gap-2 rounded-xl px-[10px] py-1 text-left text-sm transition"
@@ -715,125 +763,128 @@ watch(theme, () => {
                                     Delete
                                 </button>
                             </div>
-                            <div v-if="openBooks[book.id]" class="ml-8 space-y-1">
-                                <div
-                                    v-for="chapter in chaptersByBook[book.id] || []"
-                                    :key="chapter.id"
-                                    class="flex items-center gap-2"
-                                >
-                                    <button
-                                        class="flex flex-1 items-center gap-2 rounded-xl px-[10px] py-1 text-left text-xs transition"
-                                        :class="
-                                            selectedChapterId === chapter.id && mode === 'writing'
-                                                ? 'bg-ink text-paper'
-                                                : 'text-ink/60 hover:bg-ink/10 hover:text-ink'
-                                        "
-                                        @click="
-                                            selectedChapterId = chapter.id;
-                                            selectedNoteId = null;
-                                            mode = 'writing';
-                                        "
+                            <div v-if="openBooks[book.id]" class="ml-8 space-y-3">
+                                <!-- Chapters -->
+                                <div class="space-y-1">
+                                    <div
+                                        v-for="chapter in chaptersByBook[book.id] || []"
+                                        :key="chapter.id"
+                                        class="flex items-center gap-2"
                                     >
-                                        <span>📄</span>
-                                        <span class="truncate">{{ chapter.title }}</span>
-                                    </button>
-                                    <button
-                                        class="rounded-full border border-ink/20 px-2 py-1 text-[0.55rem] uppercase tracking-[0.18em] text-ink/50"
-                                        @click="deleteChapter(chapter)"
-                                    >
-                                        Delete
-                                    </button>
+                                        <button
+                                            class="flex flex-1 items-center gap-2 rounded-xl px-[10px] py-1 text-left text-xs transition"
+                                            :class="
+                                                selectedChapterId === chapter.id && mode === 'writing'
+                                                    ? 'bg-ink text-paper'
+                                                    : 'text-ink/60 hover:bg-ink/10 hover:text-ink'
+                                            "
+                                            @click="
+                                                selectedChapterId = chapter.id;
+                                                selectedNoteId = null;
+                                                mode = 'writing';
+                                            "
+                                        >
+                                            <span>📄</span>
+                                            <span class="truncate">{{ chapter.title }}</span>
+                                        </button>
+                                        <button
+                                            class="rounded-full border border-ink/20 px-2 py-1 text-[0.55rem] uppercase tracking-[0.18em] text-ink/50"
+                                            @click="deleteChapter(chapter)"
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                    <div v-if="!(chaptersByBook[book.id] || []).length" class="text-xs text-ink/40">
+                                        No chapters yet
+                                    </div>
                                 </div>
-                                <div v-if="!(chaptersByBook[book.id] || []).length" class="text-xs text-ink/40">
-                                    No chapters yet
+
+                                <!-- Characters -->
+                                <div class="space-y-1">
+                                    <div class="flex items-center gap-2">
+                                        <button
+                                            class="flex h-5 w-5 items-center justify-center rounded-full border border-ink/20 text-xs leading-none text-ink/60"
+                                            @click="toggleBookCharacters(book.id)"
+                                        >
+                                            {{ bookCharactersOpen[book.id] ? '−' : '+' }}
+                                        </button>
+                                        <span class="text-xs text-ink/60">👤 Characters</span>
+                                        <button
+                                            class="ml-auto rounded-full border border-ink/20 px-2 py-1 text-[0.55rem] uppercase tracking-[0.18em] text-ink/50"
+                                            @click="startNewCharacter"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                    <div v-if="bookCharactersOpen[book.id]" class="ml-6 space-y-1">
+                                        <button
+                                            v-for="character in charactersByBook[book.id] || []"
+                                            :key="character.id"
+                                            class="flex w-full items-center gap-2 rounded-xl px-[10px] py-1 text-left text-xs transition"
+                                            :class="
+                                                selectedCharacterId === character.id && mode === 'characters'
+                                                    ? 'bg-ink text-paper'
+                                                    : 'text-ink/60 hover:bg-ink/10 hover:text-ink'
+                                            "
+                                            @click="selectCharacter(character)"
+                                        >
+                                            <span>👤</span>
+                                            <span class="truncate">{{ character.name }}</span>
+                                        </button>
+                                        <div v-if="!(charactersByBook[book.id] || []).length" class="text-xs text-ink/40">
+                                            No characters yet
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Notes -->
+                                <div class="space-y-1">
+                                    <div class="flex items-center gap-2">
+                                        <button
+                                            class="flex h-5 w-5 items-center justify-center rounded-full border border-ink/20 text-xs leading-none text-ink/60"
+                                            @click="toggleBookNotes(book.id)"
+                                        >
+                                            {{ bookNotesOpen[book.id] ? '−' : '+' }}
+                                        </button>
+                                        <span class="text-xs text-ink/60">🗒️ Notes</span>
+                                        <button
+                                            class="ml-auto rounded-full border border-ink/20 px-2 py-1 text-[0.55rem] uppercase tracking-[0.18em] text-ink/50"
+                                            @click="startNewNote"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                    <div v-if="bookNotesOpen[book.id]" class="ml-6 space-y-1">
+                                        <div
+                                            v-for="note in notesByBook[book.id] || []"
+                                            :key="note.id"
+                                            class="flex items-center gap-2"
+                                        >
+                                            <button
+                                                class="flex flex-1 items-center gap-2 rounded-xl px-[10px] py-1 text-left text-xs transition"
+                                                :class="
+                                                    selectedNoteId === note.id && mode === 'notes'
+                                                        ? 'bg-ink text-paper'
+                                                        : 'text-ink/60 hover:bg-ink/10 hover:text-ink'
+                                                "
+                                                @click="selectNote(note)"
+                                            >
+                                                <span>🗒️</span>
+                                                <span class="truncate">{{ note.title || 'Untitled note' }}</span>
+                                            </button>
+                                            <button
+                                                class="rounded-full border border-ink/20 px-2 py-1 text-[0.55rem] uppercase tracking-[0.18em] text-ink/50"
+                                                @click="deleteNote(note)"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                        <div v-if="!(notesByBook[book.id] || []).length" class="text-xs text-ink/40">
+                                            No notes yet
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <p class="text-xs uppercase tracking-[0.35em] text-ink/50">Characters</p>
-                    <div class="mt-3 space-y-2 text-xs text-ink/60">
-                        <div class="flex items-center gap-2 text-sm text-ink/70">
-                            <button
-                                class="flex h-6 w-6 items-center justify-center rounded-full border border-ink/20 text-xs leading-none text-ink/60"
-                                @click="toggleCharacters"
-                            >
-                                {{ charactersOpen ? '−' : '+' }}
-                            </button>
-                            <span class="text-lg">📁</span>
-                            <span>Characters</span>
-                            <button
-                                class="ml-auto rounded-full border border-ink/20 px-2 py-1 text-[0.6rem] uppercase tracking-[0.18em] text-ink/60"
-                                @click="startNewCharacter"
-                            >
-                                +
-                            </button>
-                        </div>
-                        <div v-if="charactersOpen" class="ml-6 space-y-1">
-                            <button
-                                v-for="character in characters"
-                                :key="character.id"
-                                class="flex w-full items-center gap-2 rounded-xl px-[10px] py-1 text-left text-xs transition"
-                                :class="
-                                    selectedCharacterId === character.id && mode === 'characters'
-                                        ? 'bg-ink text-paper'
-                                        : 'text-ink/60 hover:bg-ink/10 hover:text-ink'
-                                "
-                                @click="selectCharacter(character)"
-                            >
-                                <span>📄</span>
-                                <span class="truncate">{{ character.name }}</span>
-                            </button>
-                            <div v-if="!characters.length && !loading" class="text-ink/40">No characters yet</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <p class="text-xs uppercase tracking-[0.35em] text-ink/50">Notes</p>
-                    <div class="mt-3 space-y-2 text-xs text-ink/60">
-                        <div class="flex items-center gap-2 text-sm text-ink/70">
-                            <button
-                                class="flex h-6 w-6 items-center justify-center rounded-full border border-ink/20 text-xs leading-none text-ink/60"
-                                @click="toggleNotes"
-                            >
-                                {{ notesOpen ? '−' : '+' }}
-                            </button>
-                            <span class="text-lg">📁</span>
-                            <span>Notes</span>
-                            <button
-                                class="ml-auto rounded-full border border-ink/20 px-2 py-1 text-[0.6rem] uppercase tracking-[0.18em] text-ink/60"
-                                @click="startNewNote"
-                            >
-                                +
-                            </button>
-                        </div>
-                        <div v-if="notesOpen" class="ml-6 space-y-1">
-                            <button
-                                v-for="note in visibleNotes"
-                                :key="note.id"
-                                class="flex w-full items-center gap-2 rounded-xl px-[10px] py-1 text-left text-xs transition"
-                                :class="
-                                    selectedNoteId === note.id && mode === 'notes'
-                                        ? 'bg-ink text-paper'
-                                        : 'text-ink/60 hover:bg-ink/10 hover:text-ink'
-                                "
-                                @click="selectNote(note)"
-                            >
-                                <span>🗒️</span>
-                                <span class="truncate">{{ note.title || 'Untitled note' }}</span>
-                            </button>
-                            <button
-                                v-for="note in visibleNotes"
-                                :key="`${note.id}-delete`"
-                                class="ml-8 rounded-full border border-ink/20 px-2 py-1 text-[0.55rem] uppercase tracking-[0.18em] text-ink/50"
-                                @click="deleteNote(note)"
-                            >
-                                Delete
-                            </button>
-                            <div v-if="!visibleNotes.length && !loading" class="text-ink/40">No notes yet</div>
                         </div>
                     </div>
                 </div>
