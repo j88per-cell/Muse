@@ -4,7 +4,11 @@ import { useApi } from './useApi';
 export function useCharacters() {
     const characters = ref([]);
     const selectedCharacterId = ref(null);
-    const bookCharactersOpen = ref({});
+
+    // Restore expanded character sections from localStorage
+    const storedCharactersOpen = localStorage.getItem('muse-book-characters-open');
+    const bookCharactersOpen = ref(storedCharactersOpen ? JSON.parse(storedCharactersOpen) : {});
+
     const characterDraft = ref({
         name: '',
         notes: '',

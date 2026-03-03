@@ -34,10 +34,7 @@ export function useChapters(selectedBookId) {
 
     const loadChapters = async () => {
         chapters.value = await fetch('/api/chapters').then(res => res.json());
-
-        if (!selectedChapterId.value && chapters.value.length > 0) {
-            selectedChapterId.value = chapters.value[0].id;
-        }
+        // Don't auto-select first chapter - let App.vue handle restoration from localStorage
     };
 
     const createChapter = async (book) => {

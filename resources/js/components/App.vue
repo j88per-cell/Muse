@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useBooks } from '../composables/useBooks';
 import { useChapters } from '../composables/useChapters';
 import { useCharacters } from '../composables/useCharacters';
 import { useNotes } from '../composables/useNotes';
 import { useSettings } from '../composables/useSettings';
 import { useEditor } from '../composables/useEditor';
+import { saveNavigationState, loadNavigationState } from '../composables/usePersistedState';
 import LibrarySidebar from './LibrarySidebar.vue';
 import SettingsSidebar from './SettingsSidebar.vue';
 import WritingPage from '../pages/WritingPage.vue';
@@ -256,15 +257,78 @@ const handleDeleteChapter = async (chapter) => {
     await deleteChapter(chapter);
 };
 
+// Restore navigation state from localStorage
+const restoreNavigationState = () => {
+    const savedState = loadNavigationState();
+    if (!savedState) {
+        // No saved state - don't select anything by default
+        selectedChapterId.value = null;
+        selectedCharacterId.value = null;
+        selectedNoteId.value = null;
+        return;
+    }
+
+    // Restore the saved state
+    if (savedState.mode) {
+        mode.value = savedState.mode;
+    }
+    if (savedState.selectedBookId) {
+        selectedBookId.value = savedState.selectedBookId;
+    }
+    if (savedState.selectedChapterId) {
+        selectedChapterId.value = savedState.selectedChapterId;
+    }
+    if (savedState.selectedCharacterId) {
+        selectedCharacterId.value = savedState.selectedCharacterId;
+    }
+    if (savedState.selectedNoteId) {
+        selectedNoteId.value = savedState.selectedNoteId;
+    }
+};
+
+// Save navigation state whenever it changes
+const persistNavigationState = () => {
+    saveNavigationState({
+        mode: mode.value,
+        selectedBookId: selectedBookId.value,
+        selectedChapterId: selectedChapterId.value,
+        selectedCharacterId: selectedCharacterId.value,
+        selectedNoteId: selectedNoteId.value,
+    });
+};
+
 // Initialize
 onMounted(async () => {
     await loadData();
+    restoreNavigationState();
     await handleEnsureEditor();
     handleSyncEditor();
     loadSettings();
 });
 
+// Save state before page unload
+onUnmounted(() => {
+    persistNavigationState();
+});
+
+// Persist expanded book states
+watch(openBooks, () => {
+    localStorage.setItem('muse-open-books', JSON.stringify(openBooks.value));
+}, { deep: true });
+
+watch(bookCharactersOpen, () => {
+    localStorage.setItem('muse-book-characters-open', JSON.stringify(bookCharactersOpen.value));
+}, { deep: true });
+
+watch(bookNotesOpen, () => {
+    localStorage.setItem('muse-book-notes-open', JSON.stringify(bookNotesOpen.value));
+}, { deep: true });
+
 // Watchers
+watch([mode, selectedBookId, selectedChapterId, selectedCharacterId, selectedNoteId], () => {
+    persistNavigationState();
+});
+
 watch(selectedChapterId, async () => {
     await handleEnsureEditor();
     handleSyncEditor();

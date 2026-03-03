@@ -4,7 +4,10 @@ import { useApi } from './useApi';
 export function useBooks() {
     const books = ref([]);
     const selectedBookId = ref('all');
-    const openBooks = ref({});
+
+    // Restore expanded books state from localStorage
+    const storedOpenBooks = localStorage.getItem('muse-open-books');
+    const openBooks = ref(storedOpenBooks ? JSON.parse(storedOpenBooks) : {});
     const bookTitleDraft = ref('');
 
     const { apiRequest, getCsrfToken } = useApi();

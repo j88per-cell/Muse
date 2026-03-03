@@ -4,7 +4,11 @@ import { useApi } from './useApi';
 export function useNotes() {
     const notes = ref([]);
     const selectedNoteId = ref(null);
-    const bookNotesOpen = ref({});
+
+    // Restore expanded notes sections from localStorage
+    const storedNotesOpen = localStorage.getItem('muse-book-notes-open');
+    const bookNotesOpen = ref(storedNotesOpen ? JSON.parse(storedNotesOpen) : {});
+
     const noteDraft = ref({
         title: '',
         body: '',
