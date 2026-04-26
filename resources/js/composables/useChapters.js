@@ -39,19 +39,20 @@ export function useChapters(selectedBookId) {
 
     const createChapter = async (book) => {
         if (!book?.id) {
-            return;
+            return null;
         }
         const title = window.prompt(`New chapter title for "${book.title}"`);
         if (!title) {
-            return;
+            return null;
         }
 
-        await apiRequest('/api/chapters', {
+        const chapter = await apiRequest('/api/chapters', {
             method: 'POST',
             body: JSON.stringify({ book_id: book.id, title }),
         });
 
         await loadChapters();
+        return chapter;
     };
 
     const updateChapterField = async (chapterId, payload, { refresh = false, applyLocal = true } = {}) => {
@@ -63,7 +64,7 @@ export function useChapters(selectedBookId) {
         if (applyLocal && updated) {
             const index = chapters.value.findIndex((chapter) => chapter.id === chapterId);
             if (index !== -1) {
-                chapters.value.splice(index, 1, { ...chapters.value[index], ...updated });
+                Object.assign(chapters.value[index], updated);
             }
         }
 

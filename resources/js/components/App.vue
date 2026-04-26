@@ -6,6 +6,7 @@ import { useCharacters } from '../composables/useCharacters';
 import { useNotes } from '../composables/useNotes';
 import { useSettings } from '../composables/useSettings';
 import { useEditor } from '../composables/useEditor';
+import { useChapterAnnotations } from '../composables/useChapterAnnotations';
 import { saveNavigationState, loadNavigationState } from '../composables/usePersistedState';
 import LibrarySidebar from './LibrarySidebar.vue';
 import SettingsSidebar from './SettingsSidebar.vue';
@@ -88,13 +89,26 @@ const {
     isDirty,
     isHeadingFaded,
     latestContent,
+    currentSelection,
     saveTimers,
     ensureEditor,
     syncEditor,
     onTextChange,
+    onSelectionChange,
     getEditorContent,
+    applyAnnotation,
+    removeAnnotationById,
+    scrollToAnnotation,
     scheduleSave,
 } = useEditor();
+
+const {
+    annotations,
+    loadAnnotations,
+    createAnnotation,
+    deleteAnnotation,
+    pruneOrphaned,
+} = useChapterAnnotations();
 
 // Computed properties
 const activeBook = computed(() => {
@@ -145,6 +159,7 @@ const saveEditorContent = async () => {
         { applyLocal: true }
     );
     isDirty.value = false;
+    await pruneOrphaned(latestContent.value.delta);
 };
 
 const queueContentSave = () => {
@@ -154,11 +169,12 @@ const queueContentSave = () => {
 };
 
 const handleEnsureEditor = async () => {
+    const hadEditor = !!editorInstance.value;
     await ensureEditor();
-    // Bind text change event
-    onTextChange(() => {
-        queueContentSave();
-    });
+    if (!hadEditor && editorInstance.value) {
+        onTextChange(() => queueContentSave());
+        onSelectionChange();
+    }
 };
 
 const handleSyncEditor = () => {
@@ -245,8 +261,12 @@ const handleSaveChapterPosition = () => {
 };
 
 const handleCreateChapter = async (book) => {
-    await createChapter(book);
+    const chapter = await createChapter(book);
     selectedBookId.value = book.id;
+    if (chapter) {
+        selectedChapterId.value = chapter.id;
+        mode.value = 'writing';
+    }
 };
 
 const handleDeleteBook = async (book) => {
@@ -255,6 +275,20 @@ const handleDeleteBook = async (book) => {
 
 const handleDeleteChapter = async (chapter) => {
     await deleteChapter(chapter);
+};
+
+// Annotation handlers
+const handleAddAnnotation = async ({ index, length, body }) => {
+    if (!selectedChapter.value) return;
+    const annotation = await createAnnotation(selectedChapter.value.id, index, length, body);
+    applyAnnotation(index, length, annotation.id);
+    await saveEditorContent();
+};
+
+const handleDeleteAnnotation = async (annotationId) => {
+    removeAnnotationById(annotationId);
+    await deleteAnnotation(annotationId);
+    await saveEditorContent();
 };
 
 // Restore navigation state from localStorage
@@ -304,6 +338,7 @@ onMounted(async () => {
     await handleEnsureEditor();
     handleSyncEditor();
     loadSettings();
+    await loadAnnotations(selectedChapterId.value);
 });
 
 // Save state before page unload
@@ -338,6 +373,7 @@ watch(selectedChapterId, async () => {
         selectedChapter.value && selectedChapter.value.position !== null
             ? String(selectedChapter.value.position + 1)
             : '';
+    await loadAnnotations(selectedChapterId.value);
 });
 
 watch(selectedBookId, () => {
@@ -410,20 +446,25 @@ watch(selectedNoteId, () => {
             />
 
             <WritingPage
-                v-if="mode === 'writing'"
+                v-show="mode === 'writing'"
                 :selected-chapter="selectedChapter"
                 :is-saving="isSaving"
                 :is-dirty="isDirty"
                 :is-heading-faded="isHeadingFaded"
                 :editor-font-size="editorFontSize"
+                :current-selection="currentSelection"
+                :annotations="annotations"
                 @set-editor-el="editorEl = $event"
                 @save-content="scheduleSave('manual', saveEditorContent, 0)"
                 @ensure-editor="handleEnsureEditor"
                 @sync-editor="handleSyncEditor"
+                @add-annotation="handleAddAnnotation"
+                @delete-annotation="handleDeleteAnnotation"
+                @scroll-to-annotation="scrollToAnnotation"
             />
 
             <CharactersPage
-                v-else-if="mode === 'characters'"
+                v-if="mode === 'characters'"
                 :character-draft="characterDraft"
                 :books="books"
                 :selected-character-id="selectedCharacterId"
@@ -434,7 +475,7 @@ watch(selectedNoteId, () => {
             />
 
             <NotesPage
-                v-else
+                v-if="mode === 'notes'"
                 :note-draft="noteDraft"
                 :books="books"
                 :selected-note-id="selectedNoteId"

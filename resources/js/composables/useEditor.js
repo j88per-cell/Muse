@@ -1,6 +1,23 @@
 import { ref, markRaw, nextTick } from 'vue';
 import Quill from 'quill';
 
+// Register annotation blot once at module load
+const Inline = Quill.import('blots/inline');
+class AnnotationBlot extends Inline {
+    static create(annotationId) {
+        const node = super.create();
+        node.setAttribute('data-annotation-id', String(annotationId));
+        return node;
+    }
+    static formats(node) {
+        return node.getAttribute('data-annotation-id');
+    }
+}
+AnnotationBlot.blotName = 'annotation';
+AnnotationBlot.tagName = 'span';
+AnnotationBlot.className = 'ql-annotation';
+Quill.register(AnnotationBlot);
+
 export function useEditor() {
     const editorEl = ref(null);
     const editorInstance = ref(null);
@@ -11,6 +28,7 @@ export function useEditor() {
     const isHeadingFaded = ref(false);
     const editorScrollBound = ref(false);
     const latestContent = ref({ text: '', delta: null });
+    const currentSelection = ref(null);
     const saveTimers = ref({
         title: null,
         position: null,
@@ -18,7 +36,6 @@ export function useEditor() {
     });
 
     const ensureEditor = async () => {
-        // Get the actual DOM element - editorEl.value might be a ref or the element itself
         const element = editorEl.value?.value || editorEl.value;
 
         if (editorInstance.value || editorInitInProgress.value || !element) {
@@ -100,6 +117,14 @@ export function useEditor() {
         });
     };
 
+    const onSelectionChange = (callback) => {
+        if (!editorInstance.value) return;
+        editorInstance.value.on('selection-change', (range) => {
+            currentSelection.value = range;
+            if (callback) callback(range);
+        });
+    };
+
     const getEditorContent = () => {
         if (!editorInstance.value) {
             return { text: '', delta: null };
@@ -108,6 +133,34 @@ export function useEditor() {
             delta: editorInstance.value.getContents(),
             text: editorInstance.value.getText(),
         };
+    };
+
+    const applyAnnotation = (index, length, annotationId) => {
+        if (!editorInstance.value) return;
+        editorInstance.value.formatText(index, length, 'annotation', annotationId, 'api');
+    };
+
+    const removeAnnotationById = (annotationId) => {
+        if (!editorInstance.value) return;
+        const delta = editorInstance.value.getContents();
+        const ranges = [];
+        let index = 0;
+        for (const op of delta.ops) {
+            const opLen = typeof op.insert === 'string' ? op.insert.length : 1;
+            if (String(op.attributes?.annotation) === String(annotationId)) {
+                ranges.push({ index, length: opLen });
+            }
+            index += opLen;
+        }
+        for (const range of ranges) {
+            editorInstance.value.formatText(range.index, range.length, 'annotation', false, 'api');
+        }
+    };
+
+    const scrollToAnnotation = (annotationId) => {
+        if (!editorInstance.value) return;
+        const el = editorInstance.value.root.querySelector(`[data-annotation-id="${annotationId}"]`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
 
     const scheduleSave = (key, handler, delay = 600) => {
@@ -131,11 +184,16 @@ export function useEditor() {
         isDirty,
         isHeadingFaded,
         latestContent,
+        currentSelection,
         saveTimers,
         ensureEditor,
         syncEditor,
         onTextChange,
+        onSelectionChange,
         getEditorContent,
+        applyAnnotation,
+        removeAnnotationById,
+        scrollToAnnotation,
         scheduleSave,
     };
 }

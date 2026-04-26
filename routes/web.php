@@ -7,6 +7,7 @@ use App\Http\Controllers\CharacterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\ChapterAnnotationController;
 use App\Http\Controllers\NoteController;
 
 Route::get('/', function () {
@@ -29,6 +30,9 @@ Route::prefix('api')->group(function () {
     Route::post('characters', [CharacterController::class, 'store']);
     Route::patch('characters/{character}', [CharacterController::class, 'update']);
     Route::delete('characters/{character}', [CharacterController::class, 'destroy']);
+    Route::get('chapters/{chapter}/annotations', [ChapterAnnotationController::class, 'index']);
+    Route::post('chapters/{chapter}/annotations', [ChapterAnnotationController::class, 'store']);
+    Route::delete('annotations/{annotation}', [ChapterAnnotationController::class, 'destroy']);
     Route::get('notes', [NoteController::class, 'index']);
     Route::post('notes', [NoteController::class, 'store']);
     Route::patch('notes/{note}', [NoteController::class, 'update']);
